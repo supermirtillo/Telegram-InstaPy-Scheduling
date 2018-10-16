@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import threading, datetime, json, time
+import datetime
+import threading
+import time
+
 from scripts import scripts
 
-class Thread (threading.Thread):
+
+class Thread(threading.Thread):
     def __init__(self, job_name, script_name, chat_id, bot, username, password, proxy=None):
         threading.Thread.__init__(self)
         self.job_name = job_name
         self.script_name = script_name
-        self.chat_id = chat_id 
+        self.chat_id = chat_id
         self.bot = bot
         self.username = username
         self.password = password
         self.proxy = proxy
-    
+
     def return_attribute(self):
         return {
             "job_name": self.job_name,
             "script_name": self.script_name,
-            "chat_id": self.chat_id ,
+            "chat_id": self.chat_id,
             "bot": self.bot,
             "user": {
                 "username": self.username,
@@ -30,20 +34,22 @@ class Thread (threading.Thread):
 
     def run(self):
         start = datetime.datetime.now().replace(microsecond=0)
-        self.bot.send_message(self.chat_id, text='InstaPy Bot - {} start at {}'.format(self.job_name, time.strftime("%X")))
-        
-        scripts[self.script_name](self.username, self.password, self.proxy)
-        
-        end = datetime.datetime.now().replace(microsecond=0)
-        self.bot.send_message(self.chat_id, text='InstaPy Bot end at {}\nExecution time {}'.format(time.strftime("%X"), end-start))
-        
-        # Read the last 9 line to get ended status of InstaPy.
-        with open('logs/general.log', "r") as f:
-            f.seek (0, 2)                   # Seek @ EOF
-            fsize = f.tell()                # Get Size
-            f.seek (max (fsize-1024, 0), 0) # Set pos @ last n chars
-            lines = f.readlines()           # Read to end
+        self.bot.send_message(self.chat_id,
+                              text='InstaPy Bot - {} start at {}'.format(self.job_name, time.strftime("%X")))
 
-        lines = lines[-5:]                  # Get last 5 lines
-        message = ''.join(str(x.replace("INFO - ", "")) for x in lines)
+        # run the script
+        scripts[self.script_name](self.username, self.password, self.proxy)
+
+        end = datetime.datetime.now().replace(microsecond=0)
+        self.bot.send_message(self.chat_id,
+                              text='InstaPy Bot end at {}\nExecution time {}'.format(time.strftime("%X"), end - start))
+
+        # Read the last 9 line to get ended status of InstaPy.
+        try:
+            logfile = open('instapy/logs/' + self.username + '/general.log', "r").readlines()
+            lines = logfile[-7:]
+            message = re.sub("INFO \[.*\] \[.*\]", "", lines)
+        except:
+            message = "Unable to read InstaPy log"
+
         self.bot.send_message(self.chat_id, text=message)

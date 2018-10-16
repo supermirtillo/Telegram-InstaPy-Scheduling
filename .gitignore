@@ -124,6 +124,7 @@ tests/logs
 
 # telegram-scheduling
 instapy/
+settings/
 assets/
 settings.json
 users.pickle

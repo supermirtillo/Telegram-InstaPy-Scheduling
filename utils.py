@@ -4,13 +4,15 @@
 import datetime
 from thread import Thread
 
+
 def parse_time(time):
     time = time.split(":")
-    h = int( time[0] )
-    m = int( time[1] )
-    s = int( time[2] )
+    h = int(time[0])
+    m = int(time[1])
+    s = int(time[2])
     time = datetime.time(h, m, s)
     return time
+
 
 def reload_thread(thread):
     attribute = thread.return_attribute()

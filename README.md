@@ -39,7 +39,7 @@ def script_for_big_like(username, password, proxy):
 #### Jobs management
 | Command  | Parameters                                | Description                                      |
 |----------|-------------------------------------------|--------------------------------------------------|
-| /set     | \<job_name\> \<script_name\> \<hh:mm:ss\> | Create a new schedule. Select the day from bot.  |
+| /set     | \<job_name\> \<script_name\> \<hh:mm\>    | Create a new schedule. Select the day from bot.  |
 | /unset   | \<job_name\>                              | Delete a schedule.                               |
 | /jobs    |                                           | Print all setted jobs                            |
 | /scripts |                                           | Print all your scripts                           |

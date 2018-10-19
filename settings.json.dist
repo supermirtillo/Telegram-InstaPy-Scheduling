@@ -1,7 +1,10 @@
 {
-    "telegram_token": "xxxx",
+    "telegram_token": "xxx",
     "allowed_id": [
-        "123123",
-        "342342"
-    ]
+        "123456789",
+        "another_id"
+    ],
+	"insta_user":  "instagram_username_here,
+	"insta_pass":  "instagram_password_here",
+    "base_folder": "full_path_of_the_folder"
 }

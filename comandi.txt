@@ -1,0 +1,12 @@
+set_hashtag - Imposta gli hashtag
+hashtag - Mostra gli hashtag
+set_comments - Imposta i commenti
+comments - Mostra i commenti
+set_amount - Imposta il numero di foto da visualizzare
+now - Fa partire uno script subito
+scripts - Mostra gli scripts
+set - Imposta calendario
+unset - Elimina i lavori impostati
+jobs - Mostra i lavori impostati
+stop - Riavvia il bot
+

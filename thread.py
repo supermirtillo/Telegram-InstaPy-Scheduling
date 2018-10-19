@@ -4,8 +4,11 @@
 import datetime
 import threading
 import time
+import importlib
+import re
+import traceback
 
-from scripts import scripts
+import scripts
 
 
 class Thread(threading.Thread):
@@ -38,7 +41,12 @@ class Thread(threading.Thread):
                               text='InstaPy Bot - {} start at {}'.format(self.job_name, time.strftime("%X")))
 
         # run the script
-        scripts[self.script_name](self.username, self.password, self.proxy)
+        try:
+            importlib.reload(scripts)
+            scripts._get_scripts()[self.script_name](self.username, self.password)
+        except ValueError:
+            traceback.print_exc()
+            print("Error! Signal not in main thread!")
 
         end = datetime.datetime.now().replace(microsecond=0)
         self.bot.send_message(self.chat_id,
@@ -50,6 +58,6 @@ class Thread(threading.Thread):
             lines = logfile[-7:]
             message = re.sub("INFO \[.*\] \[.*\]", "", lines)
         except:
-            message = "Unable to read InstaPy log"
+            message = "Unable to read InstaPy log!"
 
         self.bot.send_message(self.chat_id, text=message)

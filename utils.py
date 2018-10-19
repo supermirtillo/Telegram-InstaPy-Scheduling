@@ -5,12 +5,19 @@ import datetime
 from thread import Thread
 
 
+def chatid_is_valid(update, allowed_id, error_message):
+    if str(update.message.chat_id) not in allowed_id:
+        update.message.reply_text(error_message)
+        return False
+    else:
+        return True
+
+
 def parse_time(time):
     time = time.split(":")
     h = int(time[0])
     m = int(time[1])
-    s = int(time[2])
-    time = datetime.time(h, m, s)
+    time = datetime.time(h, m, 0)
     return time
 
 
@@ -26,3 +33,5 @@ def reload_thread(thread):
         attribute['user']['proxy']
     )
     return new_thread
+
+

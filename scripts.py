@@ -34,7 +34,7 @@ def commenthashtag(username, password):
     session = InstaPy(username=username,
                       password=password,
                       headless_browser=True,
-                      disable_image_load=False)
+                      disable_image_load=True)
     with smart_run(session):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
         session.set_do_comment(enabled=True, percentage=100)
@@ -42,7 +42,26 @@ def commenthashtag(username, password):
         session.like_by_tags(_get_hashtags(), amount=_get_amount())
 
 
+def followfollowers(username, password):
+    session = InstaPy(username=username,
+                      password=password,
+                      headless_browser=True,
+                      disable_image_load=True)
+    with smart_run(session):
+        session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
+        session.follow_user_followers(_get_follow(), amount=_get_amount(), randomize=False)
+
+
+def unfollow(username, password):
+    session = InstaPy(username=username,
+                      password=password,
+                      headless_browser=True,
+                      disable_image_load=True)
+    with smart_run(session):
+        session.unfollow_users(amount=99999, InstapyFollowed=(True, "all"), style="FIFO", unfollow_after=1, sleep_delay=2)
+
 # !! Not delete the following code.
+
 
 def _get_amount():
     try:
@@ -68,6 +87,15 @@ def _get_comments():
         return a
     except:
         print("Unable to read comments!")
+        raise
+
+
+def _get_follow():
+    try:
+        a = open("settings/follow.txt", encoding="utf-8").readlines()
+        return a
+    except:
+        print("Unable to read user to follow!")
         raise
 
 

@@ -56,7 +56,7 @@ class Thread(threading.Thread):
         try:
             logfile = open('instapy/logs/' + self.username + '/general.log', "r").readlines()
             lines = logfile[-7:]
-            message = re.sub("INFO \[.*\] \[.*\]", "", lines)
+            message = re.sub("INFO \[.*\] \[.*\]", "", "".join(lines))
         except:
             message = "Unable to read InstaPy log!"
 

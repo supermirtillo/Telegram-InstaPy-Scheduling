@@ -50,6 +50,7 @@ jobs_file = "settings/jobs.pkl"
 hashtag_file = "settings/tags.txt"
 amount_file = "settings/amount.txt"
 comments_file = "settings/comments.txt"
+follow_file = "settings/follow.txt"
 
 
 def now(bot, update, args):
@@ -110,6 +111,8 @@ def set_hashtag(bot, update):
 
 
 def set_comments(bot, update):
+    if not chatid_is_valid(update, allowed_id, error_message):
+        return
     global reading_comments
     global reading_hashtags
     global comments_list
@@ -120,7 +123,31 @@ def set_comments(bot, update):
     reading_comments = True
 
 
+def follow(bot, update, args):
+    if not chatid_is_valid(update, allowed_id, error_message):
+        return
+    if len(args) == 0:
+        update.message.reply_text("Uso: /set\_follow *username*", parse_mode="Markdown")
+        try:
+            with open(follow_file, "r", encoding="utf-8") as f:
+                user = f.readlines()[0]
+            update.message.reply_text("Utente attuale: *" + user + "*", parse_mode="Markdown")
+            return
+        except:
+            return
+
+    try:
+        with open(follow_file, "w", encoding="utf-8") as f:
+            f.write(args[0])
+    except:
+        update.message.reply_text("Impossibile salvare l'utente!")
+        return
+
+    update.message.reply_text("Salvato utente *" + args[0] + "*", parse_mode="Markdown")
+
 def set_amount(bot, update, args):
+    if not chatid_is_valid(update, allowed_id, error_message):
+        return
     if len(args) == 0:
         update.message.reply_text("Uso: /set_amount xyz")
         try:
@@ -459,6 +486,7 @@ if __name__ == '__main__':
     dp.add_handler(CommandHandler("set_comments", set_comments))
     dp.add_handler(CommandHandler("comments", show_comments))
     dp.add_handler(CommandHandler("stop", stop))
+    dp.add_handler(CommandHandler("set_follow", follow, pass_args=True))
 
     dp.add_handler(CommandHandler("reload_scripts", reload_scripts))
 

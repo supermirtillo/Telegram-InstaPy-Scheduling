@@ -234,7 +234,7 @@ def stop(bot, update):
         return
 
     update.message.reply_text("Restarting the bot. Please wait...")
-    subprocess.Popen(["restart.sh"], stdin=subprocess.PIPE)
+    subprocess.Popen([os.path.abspath("restart.sh")], stdin=subprocess.PIPE)
 
 def status_thread(bot, update, args):
     if not chatid_is_valid(update, allowed_id, error_message):

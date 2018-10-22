@@ -3,8 +3,8 @@
 
 # Import module
 import importlib
-import os
 import json
+import os
 import pickle
 import time
 import logging
@@ -28,8 +28,6 @@ telegram_token = settings['telegram_token']
 allowed_id = settings['allowed_id']
 user = {'username': settings['insta_user'], 'password': settings['insta_pass'], 'proxy': None}
 
-# Setup base folder
-os.chdir(settings['base_folder'])
 print(os.getcwd())
 
 # Create array with all threads

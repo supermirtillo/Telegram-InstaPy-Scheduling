@@ -5,6 +5,5 @@
         "another_id"
     ],
 	"insta_user":  "instagram_username_here,
-	"insta_pass":  "instagram_password_here",
-    "base_folder": "full_path_of_the_folder"
+	"insta_pass":  "instagram_password_here"
 }

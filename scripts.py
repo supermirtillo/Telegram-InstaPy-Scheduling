@@ -27,7 +27,7 @@ def buongiornissimo(username, password):
         session.set_do_comment(enabled=True, percentage=100)
         session.set_comments(['Buongiorno! 😊 Bellissima foto e complimenti per la tua galleria, fantastica! 🔝 Ti va \
         di passare dal mio profilo e seguirmi se ti piacciono i miei lavori? 📸'])
-        session.like_by_tags(["buongiorno"], amount=_get_amount())
+        session.like_by_tags(["buongiorno"], amount=_get_amount(), media="Photo")
 
 
 def commenthashtag(username, password):
@@ -39,7 +39,7 @@ def commenthashtag(username, password):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
         session.set_do_comment(enabled=True, percentage=100)
         session.set_comments(_get_comments())
-        session.like_by_tags(_get_hashtags(), amount=_get_amount())
+        session.like_by_tags(_get_hashtags(), amount=_get_amount(), media="Photo")
 
 
 def followfollowers(username, password):

@@ -128,3 +128,4 @@ settings/
 assets/
 settings.json
 users.pickle
+*.out

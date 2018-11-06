@@ -1,17 +1,1 @@
-certifi
-chardet
-clarifai
-configparser
-EasyProcess
-emoji
-future
-gitdb2
-GitPython
-idna
-jsonschema
 python-telegram-bot
-PyVirtualDisplay
-requests
-selenium
-smmap2
-urllib3

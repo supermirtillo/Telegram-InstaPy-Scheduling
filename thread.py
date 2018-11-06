@@ -36,7 +36,9 @@ class Thread(threading.Thread):
     def run(self):
         start = datetime.datetime.now().replace(microsecond=0)
         self.bot.send_message(self.chat_id,
-                              text="*{}*\nPartito @ {}".format(self.job_name, time.strftime("%X")))
+                              text="*{}*\nPartito @ {}".format(self.job_name, time.strftime("%X")),
+                              parse_mode="Markdown"
+                              )
 
         # run the script
         try:

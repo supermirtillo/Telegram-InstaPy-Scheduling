@@ -9,14 +9,16 @@ import pickle
 import time
 import logging
 import subprocess
+from functools import wraps
 from threading import Event
 from time import time
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+import telegram
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters, ConversationHandler
 
+# librerie utente
 import scripts
-from utils import *
+import utils
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -27,6 +29,9 @@ with open('settings.json') as f:
 telegram_token = settings['telegram_token']
 allowed_id = settings['allowed_id']
 user = {'username': settings['insta_user'], 'password': settings['insta_pass'], 'proxy': None}
+content = utils.load_content()
+
+cartella_corrente = None
 
 print(os.getcwd())
 
@@ -51,18 +56,31 @@ comments_file = "settings/comments.txt"
 follow_file = "settings/follow.txt"
 
 
-def now(bot, update, args):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-    try:
+def restricted(func):
+    """
+    Definisco il decorator @restricted per controllare l'accesso ai comandi
+    """
 
+    @wraps(func)
+    def wrapped(bot, update, *args, **kwargs):
+        user_id = update.effective_user.id
+        if str(user_id) not in allowed_id:
+            update.message.reply_text(error_message)
+            return
+        return func(bot, update, *args, **kwargs)
+
+    return wrapped
+
+
+@restricted
+def now(bot, update, args):
+    try:
         if not args[0] in scripts._get_scripts():
-            update.message.reply_text("Sorry, script named <b>{}</b> is not in your scripts file.".format(args[0]),
-                                      parse_mode='HTML')
+            update.message.reply_text("Lo script <b>{}</b> non esiste!".format(args[0]), parse_mode='HTML')
             return
 
         job_name = "{}_temp_{}".format(args[0], time())
-        temp_thread = Thread(
+        temp_thread = utils.Thread(
             job_name,
             args[0],
             update.message.chat_id,
@@ -81,12 +99,12 @@ def exec_thread(bot, job):
         bot.send_message(threads[job.name].chat_id, text="Sorry <b>{}</b> already executing!".format(job.name),
                          parse_mode='HTML')
     else:
-        threads[job.name] = reload_thread(threads[job.name])
+        threads[job.name] = utils.reload_thread(threads[job.name])
         threads[job.name].start()
 
 
 def create_thread(bot, context):
-    threads[context['job_name']] = Thread(
+    threads[context['job_name']] = utils.Thread(
         context['job_name'],
         context['script_name'],
         context['chat_id'],
@@ -97,6 +115,7 @@ def create_thread(bot, context):
     )
 
 
+@restricted
 def set_hashtag(bot, update):
     global reading_hashtags
     global reading_comments
@@ -108,22 +127,91 @@ def set_hashtag(bot, update):
     reading_comments = False
 
 
-def set_comments(bot, update):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-    global reading_comments
-    global reading_hashtags
-    global comments_list
-    update.message.reply_text("Inviami i commenti uno alla volta")
-    update.message.reply_text("Per terminare manda #")
-    comments_list = []
-    reading_hashtags = False
-    reading_comments = True
+@restricted
+def lista_cartelle(bot, update):
+    """
+    Mostro all'utente la lista delle cartelle salvate
+    """
+    tastiera = telegram.ReplyKeyboardMarkup(
+        utils.create_button_layout(
+            list(content["comments"].keys()),
+            3),
+        resize_keyboard=True
+    )
+    risposta = "👉 *Scegli* la cartella\n       _oppure_\n👉 *Scrivi* il nome di una cartella per crearla"
+    update.message.reply_text(risposta, parse_mode="Markdown", reply_markup=tastiera)
+
+    return CARTELLA  # passo allo stato di lettura della cartella
 
 
+@restricted
+def leggi_cartella(bot, update):
+    """
+    Legge la cartella con il MessageHandler, modifica la variabile globale
+    cartella_corrente e passa allo stato di lettura dei commenti per quella cartella
+    """
+    global cartella_corrente
+    global content
+    cartella_corrente = update.message.text
+    if cartella_corrente in content["comments"]:
+        risposta = "Contenuto della cartella *{}*\n".format(cartella_corrente)
+        for commento in content["comments"][cartella_corrente]:
+            risposta += "\n▪️ {}".format(commento)
+        update.message.reply_text(risposta, parse_mode="Markdown",
+                                  reply_markup=telegram.ReplyKeyboardMarkup(
+                                      [["🔄 Azzera e riscrivi"], ["✏️ Aggiungi commento"], ["✅ Fine"]],
+                                      resize_keyboard=True
+                                  ))
+        return MODIFICA
+
+    else:
+        content["comments"][cartella_corrente] = []
+        update.message.reply_text("Nuova cartella *{}*".format(cartella_corrente), parse_mode="Markdown")
+
+    update.message.reply_text("Scrivi pure i commenti per questa cartella uno alla volta. Manda *#* per terminare",
+                              parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+    return COMMENTI
+
+
+@restricted
+def resetta_o_fine_cartella(bot, update):
+    global content
+    text = update.message.text
+    if ("riscrivi" or "aggiungi") in text.lower():
+        update.message.reply_text(
+            "Scrivi pure i commenti per *{}* uno alla volta. Manda *#* per terminare".format(cartella_corrente),
+            parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+
+        if "riscrivi" in text.lower():
+            # se c'è il riscrivi vuol dire che devo resettare la lista
+            # prima di aggiungere commenti con leggi_commenti
+            content["comments"][cartella_corrente] = []
+
+        return COMMENTI
+    else:
+        update.message.reply_text("*Fine*", parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+        return ConversationHandler.END
+
+
+@restricted
+def leggi_commenti(bot, update):
+    global content
+    commento = update.message.text
+    if commento == "#":
+        update.message.reply_text("*Commenti salvati* 😎", parse_mode="Markdown")
+        return ConversationHandler.END
+
+    content["comments"][cartella_corrente].append(commento)
+    utils.save_content(content)
+
+
+@restricted
+def cancel(bot, update):
+    return ConversationHandler.END
+
+
+@restricted
 def follow(bot, update, args):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
     if len(args) == 0:
         update.message.reply_text("Uso: /set\_follow *username*", parse_mode="Markdown")
         try:
@@ -143,9 +231,9 @@ def follow(bot, update, args):
 
     update.message.reply_text("Salvato utente *" + args[0] + "*", parse_mode="Markdown")
 
+
+@restricted
 def set_amount(bot, update, args):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
     if len(args) == 0:
         update.message.reply_text("Uso: /set_amount xyz")
         try:
@@ -166,10 +254,8 @@ def set_amount(bot, update, args):
     update.message.reply_text("Impostato il valore a " + args[0])
 
 
+@restricted
 def show_hashtag(bot, update):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-
     update.message.reply_text("*Hashtag salvati*", parse_mode="Markdown")
     try:
         lista = open(hashtag_file, "r", encoding="utf-8").readlines()
@@ -181,10 +267,8 @@ def show_hashtag(bot, update):
         update.message.reply_text("Nessun hashtag salvato!")
 
 
+@restricted
 def show_comments(bot, update):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-
     update.message.reply_text("*Commenti salvati*", parse_mode="Markdown")
     try:
         lista = open(comments_file, "r", encoding="utf-8").readlines()
@@ -196,10 +280,8 @@ def show_comments(bot, update):
         update.message.reply_text("Nessun commento salvato!")
 
 
+@restricted
 def message_handler(bot, update):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-
     global reading_hashtags
     global hashtag_list
     global reading_comments
@@ -229,16 +311,14 @@ def message_handler(bot, update):
             reading_comments = False
 
 
+@restricted
 def stop(bot, update):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-
-    update.message.reply_text("Restarting the bot. Please wait...")
+    update.message.reply_text("Bot restarted!")
     subprocess.Popen([os.path.abspath("restart.sh")], stdin=subprocess.PIPE)
 
+
+@restricted
 def status_thread(bot, update, args):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
     if len(args) != 0:
         message = ""
         for arg in args:
@@ -261,10 +341,8 @@ def status_thread(bot, update, args):
         update.message.reply_text(message, parse_mode='HTML')
 
 
+@restricted
 def set(bot, update, args, chat_data):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-
     try:
         if args[0] in chat_data or args[1] in threads:
             update.message.reply_text("Sorry, job named <b>{}</b> is already used.".format(args[0]),
@@ -285,16 +363,16 @@ def set(bot, update, args, chat_data):
         }
         chat_data['tmpjob'] = data
 
-        keyboard = [[InlineKeyboardButton("Sunday", callback_data='6'),
-                     InlineKeyboardButton("Monday", callback_data='0'),
-                     InlineKeyboardButton("Tuesday", callback_data='1'),
-                     InlineKeyboardButton("Wednesday", callback_data='2')],
-                    [InlineKeyboardButton("Thursday", callback_data='3'),
-                     InlineKeyboardButton("Friday", callback_data='4'),
-                     InlineKeyboardButton("Saturday", callback_data='5')],
-                    [InlineKeyboardButton("Everyday", callback_data='-1')]]
+        keyboard = [[telegram.InlineKeyboardButton("Sunday", callback_data='6'),
+                     telegram.InlineKeyboardButton("Monday", callback_data='0'),
+                     telegram.InlineKeyboardButton("Tuesday", callback_data='1'),
+                     telegram.InlineKeyboardButton("Wednesday", callback_data='2')],
+                    [telegram.InlineKeyboardButton("Thursday", callback_data='3'),
+                     telegram.InlineKeyboardButton("Friday", callback_data='4'),
+                     telegram.InlineKeyboardButton("Saturday", callback_data='5')],
+                    [telegram.InlineKeyboardButton("Everyday", callback_data='-1')]]
 
-        update.message.reply_text('Choose a day: ', reply_markup=InlineKeyboardMarkup(keyboard))
+        update.message.reply_text('Choose a day: ', reply_markup=telegram.InlineKeyboardMarkup(keyboard))
     except (IndexError, ValueError):
         update.message.reply_text('Usage: /set <job_name> <script_name> <hh:mm>')
 
@@ -305,7 +383,7 @@ def day_choose(bot, update, chat_data):
 
     query = update.callback_query
 
-    scheduled_time = parse_time(chat_data['tmpjob']['scheduled'])
+    scheduled_time = utils.parse_time(chat_data['tmpjob']['scheduled'])
     name_job = chat_data['tmpjob']['job_name']
 
     if query.data == '-1' or query.data == '-2':
@@ -342,28 +420,26 @@ def day_choose(bot, update, chat_data):
         if int(query.data) not in chat_data['tmpjob']['days']:
             chat_data['tmpjob']['days'].append(int(query.data))
 
-        keyboard = [[InlineKeyboardButton("Sunday", callback_data='6'),
-                     InlineKeyboardButton("Monday", callback_data='0'),
-                     InlineKeyboardButton("Tuesday", callback_data='1'),
-                     InlineKeyboardButton("Wednesday", callback_data='2')],
-                    [InlineKeyboardButton("Thursday", callback_data='3'),
-                     InlineKeyboardButton("Friday", callback_data='4'),
-                     InlineKeyboardButton("Saturday", callback_data='5')],
-                    [InlineKeyboardButton("Confirm", callback_data='-2')]]
+        keyboard = [[telegram.InlineKeyboardButton("Sunday", callback_data='6'),
+                     telegram.InlineKeyboardButton("Monday", callback_data='0'),
+                     telegram.InlineKeyboardButton("Tuesday", callback_data='1'),
+                     telegram.InlineKeyboardButton("Wednesday", callback_data='2')],
+                    [telegram.InlineKeyboardButton("Thursday", callback_data='3'),
+                     telegram.InlineKeyboardButton("Friday", callback_data='4'),
+                     telegram.InlineKeyboardButton("Saturday", callback_data='5')],
+                    [telegram.InlineKeyboardButton("Confirm", callback_data='-2')]]
 
         selected_days = ", ".join([days[i] for i in chat_data['tmpjob']['days']])
         bot.edit_message_text(text="Select another day or confirm:\n{}".format(selected_days),
                               chat_id=query.message.chat_id,
                               message_id=query.message.message_id,
-                              reply_markup=InlineKeyboardMarkup(keyboard))
+                              reply_markup=telegram.InlineKeyboardMarkup(keyboard))
 
     save_jobs()
 
 
+@restricted
 def unset(bot, update, args, chat_data):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-
     try:
         job_queue.get_jobs_by_name(args[0])[0].schedule_removal()
         update.message.reply_text('Job <b>{}</b> successfully unset!'.format(args[0]), parse_mode='HTML')
@@ -373,19 +449,16 @@ def unset(bot, update, args, chat_data):
     save_jobs()
 
 
+@restricted
 def list_jobs(bot, update, chat_data):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
-
     jobs = job_queue.jobs()
     for j in jobs:
         if not j.removed:
             update.message.reply_text(j.name)
 
 
+@restricted
 def list_scripts(bot, update):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
     scripts_list = scripts._get_scripts()
     message = "You have <b>{}</b> scripts configured.".format(len(scripts_list))
     index = 1
@@ -395,9 +468,8 @@ def list_scripts(bot, update):
     update.message.reply_text(message, parse_mode='HTML')
 
 
+@restricted
 def reload_scripts(bot, update):
-    if not chatid_is_valid(update, allowed_id, error_message):
-        return
     importlib.reload(scripts)
     update.message.reply_text("Scripts reloaded!")
 
@@ -472,6 +544,7 @@ if __name__ == '__main__':
     except FileNotFoundError:
         pass
 
+    dp.add_handler(CallbackQueryHandler(day_choose, pass_chat_data=True))
     dp.add_handler(CommandHandler("status", status_thread, pass_args=True))
     dp.add_handler(CommandHandler("set", set, pass_args=True, pass_chat_data=True))
     dp.add_handler(CommandHandler("now", now, pass_args=True))
@@ -481,16 +554,23 @@ if __name__ == '__main__':
     dp.add_handler(CommandHandler("set_hashtag", set_hashtag))
     dp.add_handler(CommandHandler("hashtag", show_hashtag))
     dp.add_handler(CommandHandler("set_amount", set_amount, pass_args=True))
-    dp.add_handler(CommandHandler("set_comments", set_comments))
     dp.add_handler(CommandHandler("comments", show_comments))
     dp.add_handler(CommandHandler("stop", stop))
     dp.add_handler(CommandHandler("set_follow", follow, pass_args=True))
-
     dp.add_handler(CommandHandler("reload_scripts", reload_scripts))
 
-    dp.add_handler(MessageHandler(Filters.text, message_handler))
+    CARTELLA, COMMENTI, MODIFICA = range(3)
 
-    dp.add_handler(CallbackQueryHandler(day_choose, pass_chat_data=True))
+    dp.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("set_comments", lista_cartelle)],
+        states={
+            CARTELLA: [MessageHandler(Filters.text, leggi_cartella)],
+            COMMENTI: [MessageHandler(Filters.text, leggi_commenti)],
+            MODIFICA: [MessageHandler(Filters.text, resetta_o_fine_cartella)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        per_user=False
+    ))
 
     updater.start_polling()
 

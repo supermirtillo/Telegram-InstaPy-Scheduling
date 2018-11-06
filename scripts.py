@@ -3,18 +3,21 @@
 
 from instapy.instapy import InstaPy
 from instapy.instapy.util import smart_run
+import utils
 
 
 # Create your script here:
 
 def likehashtag(username, password):
+    content = utils.load_content()
     session = InstaPy(username=username,
                       password=password,
                       headless_browser=True,
                       disable_image_load=False)
     with smart_run(session):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
-        session.like_by_tags(_get_hashtags(), amount=_get_amount())
+        #session.like_by_tags(_get_hashtags(), amount=_get_amount())
+        session.like_by_tags(content["hashtags"], amount=content["amount"])
 
 
 def buongiornissimo(username, password):
@@ -58,7 +61,9 @@ def unfollow(username, password):
                       headless_browser=True,
                       disable_image_load=True)
     with smart_run(session):
-        session.unfollow_users(amount=99999, InstapyFollowed=(True, "all"), style="FIFO", unfollow_after=1, sleep_delay=2)
+        session.unfollow_users(amount=99999, InstapyFollowed=(True, "all"), style="FIFO", unfollow_after=1,
+                               sleep_delay=2)
+
 
 # !! Not delete the following code.
 

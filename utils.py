@@ -31,7 +31,7 @@ def load_content():
         with open(pickle_file, "rb") as f:
             content = pickle.load(f)
     except:
-        return {"comments": {}, "hashtags": [], "follow": [], "amount": 0}
+        return {"comments": {}, "hashtag": [], "follow": [], "amount": 0}
 
     try:
         content["amount"] = int(content["amount"])

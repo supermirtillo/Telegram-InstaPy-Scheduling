@@ -16,8 +16,7 @@ def likehashtag(username, password):
                       disable_image_load=False)
     with smart_run(session):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
-        #session.like_by_tags(_get_hashtags(), amount=_get_amount())
-        session.like_by_tags(content["hashtags"], amount=content["amount"])
+        session.like_by_tags(content["hashtag"], amount=content["amount"])
 
 
 def buongiornissimo(username, password):

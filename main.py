@@ -4,11 +4,11 @@
 # Import module
 import importlib
 import json
+import logging
 import os
 import pickle
-import time
-import logging
 import subprocess
+import time
 from functools import wraps
 from threading import Event
 from time import time
@@ -35,10 +35,10 @@ cartella_corrente = None
 
 print(os.getcwd())
 
-# Create array with all threads
+# Crea array con tutti i thread
 threads = {}
 
-# Error message
+# Messaggio di errore per quando l'utente non è autenticato
 error_message = "This bot no longer works."
 
 # Command status
@@ -117,14 +117,50 @@ def create_thread(bot, context):
 
 @restricted
 def set_hashtag(bot, update):
-    global reading_hashtags
-    global reading_comments
-    global hashtag_list
-    update.message.reply_text("Inviami gli hashtag uno alla volta (senza #)")
-    update.message.reply_text("Per terminare manda #")
-    hashtag_list = []
-    reading_hashtags = True
-    reading_comments = False
+    """
+    Mostro all'utente la lista degli hashtag salvati e chiedo cosa fare
+    """
+    risposta = "Ecco gli *hashtag* salvati:\n"
+    for tag in content["hashtag"]:
+        risposta += "\n▫️ {}".format(tag)
+
+    update.message.reply_text(risposta, parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardMarkup(
+        [["🔄 Azzera e riscrivi"], ["✏️ Aggiungi hashtag"], ["✅ Fine"]],
+        resize_keyboard=True
+    ))
+
+    return MODIFICA_HASHTAG
+
+
+@restricted
+def modifica_hashtag(bot, update):
+    global content
+    text = update.message.text
+    if ("riscrivi" in text.lower()) or ("aggiungi" in text.lower()):
+        update.message.reply_text(
+            "Scrivi gli hashtag uno alla volta. Manda *#* per terminare",
+            parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+
+        if "riscrivi" in text.lower():
+            # se c'è il riscrivi vuol dire che devo resettare la lista
+            # prima di aggiungere commenti con leggi_commenti
+            content["hashtag"] = []
+
+        return LEGGI_HASHTAG
+    else:
+        return fine_conversazione(bot, update)
+
+
+@restricted
+def leggi_hashtag(bot, update):
+    global content
+    hashtag = update.message.text
+    if hashtag == "#":
+        update.message.reply_text("*Hashtag salvati* 😎", parse_mode="Markdown")
+        return ConversationHandler.END
+
+    content["hashtag"].append(hashtag)
+    utils.save_content(content)
 
 
 @restricted
@@ -162,7 +198,7 @@ def leggi_cartella(bot, update):
                                       [["🔄 Azzera e riscrivi"], ["✏️ Aggiungi commento"], ["✅ Fine"]],
                                       resize_keyboard=True
                                   ))
-        return MODIFICA
+        return MODIFICA_COMMENTI
 
     else:
         content["comments"][cartella_corrente] = []
@@ -170,14 +206,14 @@ def leggi_cartella(bot, update):
 
     update.message.reply_text("Scrivi pure i commenti per questa cartella uno alla volta. Manda *#* per terminare",
                               parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
-    return COMMENTI
+    return LEGGI_COMMENTI
 
 
 @restricted
 def resetta_o_fine_cartella(bot, update):
     global content
     text = update.message.text
-    if ("riscrivi" or "aggiungi") in text.lower():
+    if ("riscrivi" in text.lower()) or ("aggiungi" in text.lower()):
         update.message.reply_text(
             "Scrivi pure i commenti per *{}* uno alla volta. Manda *#* per terminare".format(cartella_corrente),
             parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
@@ -187,10 +223,9 @@ def resetta_o_fine_cartella(bot, update):
             # prima di aggiungere commenti con leggi_commenti
             content["comments"][cartella_corrente] = []
 
-        return COMMENTI
+        return LEGGI_COMMENTI
     else:
-        update.message.reply_text("*Fine*", parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
-        return ConversationHandler.END
+        return fine_conversazione(bot, update)
 
 
 @restricted
@@ -207,6 +242,14 @@ def leggi_commenti(bot, update):
 
 @restricted
 def cancel(bot, update):
+    update.message.reply_text("⛔️ *Comando annullato*", parse_mode="Markdown",
+                              reply_markup=telegram.ReplyKeyboardRemove())
+    return ConversationHandler.END
+
+
+def fine_conversazione(bot, update):
+    update.message.reply_text("*Fine*", parse_mode="Markdown",
+                              reply_markup=telegram.ReplyKeyboardRemove())
     return ConversationHandler.END
 
 
@@ -233,25 +276,36 @@ def follow(bot, update, args):
 
 
 @restricted
-def set_amount(bot, update, args):
-    if len(args) == 0:
-        update.message.reply_text("Uso: /set_amount xyz")
-        try:
-            with open(amount_file, "r", encoding="utf-8") as f:
-                amnt = f.readlines()[0]
-            update.message.reply_text("Valore attuale: *" + amnt + "*", parse_mode="Markdown")
-            return
-        except:
-            return
+def set_amount(bot, update):
+    update.message.reply_text("Valore attuale: *{}*".format(content["amount"]), parse_mode="Markdown",
+                              reply_markup=telegram.ReplyKeyboardMarkup([["✏️ Modifica"], ["✅ Fine"]],
+                                                                        resize_keyboard=True)
+                              )
+    return MODIFICA_AMOUNT
 
+
+@restricted
+def modifica_amount(bot, update):
+    text = update.message.text
+    if "modifica" in text.lower():
+        update.message.reply_text("Scrivi il nuovo valore:", reply_markup=telegram.ReplyKeyboardRemove())
+        return LEGGI_AMOUNT
+    else:
+        return fine_conversazione(bot, update)
+
+
+@restricted
+def leggi_amount(bot, update):
+    text = update.message.text
     try:
-        with open(amount_file, "w", encoding="utf-8") as f:
-            f.write(args[0])
-    except:
-        update.message.reply_text("Impossibile impostare il valore!")
-        return
+        amt = int(text)
+    except ValueError:
+        update.message.reply_text("Attenzione! Valore non valido. Inserire un numero!")
+        return LEGGI_AMOUNT
 
-    update.message.reply_text("Impostato il valore a " + args[0])
+    content["amount"] = amt
+    update.message.reply_text("*Valore salvato* 👍", parse_mode="Markdown")
+    return ConversationHandler.END
 
 
 @restricted
@@ -553,23 +607,49 @@ if __name__ == '__main__':
     dp.add_handler(CommandHandler("scripts", list_scripts))
     dp.add_handler(CommandHandler("set_hashtag", set_hashtag))
     dp.add_handler(CommandHandler("hashtag", show_hashtag))
-    dp.add_handler(CommandHandler("set_amount", set_amount, pass_args=True))
-    dp.add_handler(CommandHandler("comments", show_comments))
     dp.add_handler(CommandHandler("stop", stop))
     dp.add_handler(CommandHandler("set_follow", follow, pass_args=True))
     dp.add_handler(CommandHandler("reload_scripts", reload_scripts))
 
-    CARTELLA, COMMENTI, MODIFICA = range(3)
+
+    # conversazione per l'aggiunta e la visione dei commenti salvati
+    CARTELLA, LEGGI_COMMENTI, MODIFICA_COMMENTI = range(3)
 
     dp.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("set_comments", lista_cartelle)],
+        entry_points=[CommandHandler("comments", lista_cartelle)],
         states={
             CARTELLA: [MessageHandler(Filters.text, leggi_cartella)],
-            COMMENTI: [MessageHandler(Filters.text, leggi_commenti)],
-            MODIFICA: [MessageHandler(Filters.text, resetta_o_fine_cartella)]
+            LEGGI_COMMENTI: [MessageHandler(Filters.text, leggi_commenti)],
+            MODIFICA_COMMENTI: [MessageHandler(Filters.text, resetta_o_fine_cartella)]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        per_user=False
+        per_user=True
+    ))
+
+    # conversazione per l'aggiunta e la visualizzazione degli hashtag
+    MODIFICA_HASHTAG, LEGGI_HASHTAG = range(2)
+
+    dp.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("hashtags", set_hashtag)],
+        states={
+            MODIFICA_HASHTAG: [MessageHandler(Filters.text, modifica_hashtag)],
+            LEGGI_HASHTAG: [MessageHandler(Filters.text, leggi_hashtag)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        per_user=True
+    ))
+
+    # conversazione per l'impostazione dell'amount
+    MODIFICA_AMOUNT, LEGGI_AMOUNT = range(2)
+
+    dp.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("amount", set_amount)],
+        states={
+            LEGGI_AMOUNT: [MessageHandler(Filters.text, leggi_amount)],
+            MODIFICA_AMOUNT: [MessageHandler(Filters.text, modifica_amount)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        per_user=True
     ))
 
     updater.start_polling()

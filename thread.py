@@ -12,7 +12,7 @@ import scripts
 
 
 class Thread(threading.Thread):
-    def __init__(self, job_name, script_name, chat_id, bot, username, password, proxy=None):
+    def __init__(self, job_name, script_name, chat_id, bot, username, password, cartella_commenti):
         threading.Thread.__init__(self)
         self.job_name = job_name
         self.script_name = script_name
@@ -20,7 +20,7 @@ class Thread(threading.Thread):
         self.bot = bot
         self.username = username
         self.password = password
-        self.proxy = proxy
+        self.cartella_commenti = cartella_commenti
 
     def return_attribute(self):
         return {
@@ -28,29 +28,30 @@ class Thread(threading.Thread):
             "script_name": self.script_name,
             "chat_id": self.chat_id,
             "bot": self.bot,
-            "user": {
-                "username": self.username,
-                "password": self.password,
-                "proxy": self.proxy
-            }
+            "username": self.username,
+            "password": self.password,
+            "cartella_commenti": self.cartella_commenti
         }
 
     def run(self):
         start = datetime.datetime.now().replace(microsecond=0)
         self.bot.send_message(self.chat_id,
-                              text='InstaPy Bot - {} start at {}'.format(self.job_name, time.strftime("%X")))
+                              text="*{}*\nPartito @ {}".format(self.job_name, time.strftime("%X")))
 
         # run the script
         try:
             importlib.reload(scripts)
-            scripts._get_scripts()[self.script_name](self.username, self.password)
+            scripts._get_scripts()[self.script_name](self.username, self.password, self.cartella_commenti)
         except ValueError:
             traceback.print_exc()
             print("Error! Signal not in main thread!")
 
         end = datetime.datetime.now().replace(microsecond=0)
         self.bot.send_message(self.chat_id,
-                              text='InstaPy Bot end at {}\nExecution time {}'.format(time.strftime("%X"), end - start))
+                              text='*{}*\nFinito @ {}\nTempo di esecuzione: {}'.
+                              format(self.job_name, time.strftime("%X"), end - start),
+                              parse_mode="Markdown"
+                              )
 
         # Read the last 9 line to get ended status of InstaPy.
         try:

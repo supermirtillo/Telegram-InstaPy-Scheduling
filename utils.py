@@ -61,8 +61,8 @@ def reload_thread(thread):
         attribute['script_name'],
         attribute['chat_id'],
         attribute['bot'],
-        attribute['user']['username'],
-        attribute['user']['password'],
-        attribute['user']['proxy']
+        attribute['username'],
+        attribute['password'],
+        attribute['cartella_commenti']
     )
     return new_thread

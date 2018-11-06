@@ -1,10 +1,9 @@
-set_hashtag - Imposta gli hashtag
-hashtag - Mostra gli hashtag
-set_comments - Imposta i commenti
-comments - Mostra i commenti
-set_follow - Imposta un utente
-set_amount - Imposta il numero di foto da visualizzare
+hashtag - Impostazioni per glihashtag
+comments - Impostazioni per i commenti
+amount - Imposta il numero di foto con cui interagire
 now - Fa partire uno script subito
+cancel - Annulla il comando
+set_follow - Imposta un utente
 scripts - Mostra gli scripts
 set - Imposta calendario
 unset - Elimina i lavori impostati

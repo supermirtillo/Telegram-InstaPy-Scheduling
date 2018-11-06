@@ -8,10 +8,9 @@ import logging
 import os
 import pickle
 import subprocess
-import time
 from functools import wraps
 from threading import Event
-from time import time
+from time import time, strftime
 
 import telegram
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters, ConversationHandler
@@ -70,6 +69,59 @@ def restricted(func):
         return func(bot, update, *args, **kwargs)
 
     return wrapped
+
+
+def now_conv(bot, update):
+    tastiera = telegram.ReplyKeyboardMarkup(
+        utils.create_button_layout(
+            list(content["comments"].keys()),
+            3),
+        resize_keyboard=True
+    )
+    update.message.reply_text("👉 *Scegli* la cartella", parse_mode="Markdown", reply_markup=tastiera)
+
+    return CARTELLA_NOW
+
+
+@restricted
+def cartella_now(bot, update):
+    global cartella_corrente
+
+    text = update.message.text
+    cartella_corrente = text
+
+    scripts_list = list(scripts._get_scripts().keys())
+    tastiera_script = telegram.ReplyKeyboardMarkup(utils.create_button_layout(scripts_list, 3))
+
+    risposta = "📖 *{}*\n".format(cartella_corrente)
+    risposta += "\n*Hashtag* salvati:"
+    for tag in content["hashtag"]:
+        risposta += "\n▫️ {}".format(tag.lower())
+    update.message.reply_text(risposta, parse_mode="Markdown")
+
+    update.message.reply_text("👉 Scegli uno *script*:", parse_mode="Markdown",
+                              reply_markup=tastiera_script)
+    return SCRIPT_NOW
+
+
+@restricted
+def script_now(bot, update):
+    script = update.message.text
+    update.message.reply_text("Sto facendo partire lo script *{}*...".format(script), parse_mode="Markdown",
+                              reply_markup=telegram.ReplyKeyboardRemove())
+
+    job_name = "{} - {}".format(script, strftime("%H:%M_%Y-%m-%d"))
+    temp_thread = utils.Thread(
+        job_name,
+        script,
+        update.message.chat_id,
+        bot,
+        user['username'],
+        user['password'],
+        cartella_corrente
+    )
+    temp_thread.start()
+    return ConversationHandler.END
 
 
 @restricted
@@ -601,7 +653,6 @@ if __name__ == '__main__':
     dp.add_handler(CallbackQueryHandler(day_choose, pass_chat_data=True))
     dp.add_handler(CommandHandler("status", status_thread, pass_args=True))
     dp.add_handler(CommandHandler("set", set, pass_args=True, pass_chat_data=True))
-    dp.add_handler(CommandHandler("now", now, pass_args=True))
     dp.add_handler(CommandHandler("unset", unset, pass_args=True, pass_chat_data=True))
     dp.add_handler(CommandHandler("jobs", list_jobs, pass_chat_data=True))
     dp.add_handler(CommandHandler("scripts", list_scripts))
@@ -610,7 +661,6 @@ if __name__ == '__main__':
     dp.add_handler(CommandHandler("stop", stop))
     dp.add_handler(CommandHandler("set_follow", follow, pass_args=True))
     dp.add_handler(CommandHandler("reload_scripts", reload_scripts))
-
 
     # conversazione per l'aggiunta e la visione dei commenti salvati
     CARTELLA, LEGGI_COMMENTI, MODIFICA_COMMENTI = range(3)
@@ -630,7 +680,7 @@ if __name__ == '__main__':
     MODIFICA_HASHTAG, LEGGI_HASHTAG = range(2)
 
     dp.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("hashtags", set_hashtag)],
+        entry_points=[CommandHandler("hashtag", set_hashtag)],
         states={
             MODIFICA_HASHTAG: [MessageHandler(Filters.text, modifica_hashtag)],
             LEGGI_HASHTAG: [MessageHandler(Filters.text, leggi_hashtag)]
@@ -647,6 +697,19 @@ if __name__ == '__main__':
         states={
             LEGGI_AMOUNT: [MessageHandler(Filters.text, leggi_amount)],
             MODIFICA_AMOUNT: [MessageHandler(Filters.text, modifica_amount)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        per_user=True
+    ))
+
+    # conversazione per now
+    CARTELLA_NOW, SCRIPT_NOW = range(2)
+
+    dp.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("now", now_conv)],
+        states={
+            CARTELLA_NOW: [MessageHandler(Filters.text, cartella_now)],
+            SCRIPT_NOW: [MessageHandler(Filters.text, script_now)]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         per_user=True

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import utils
 from instapy.instapy import InstaPy
 from instapy.instapy.util import smart_run
-import utils
 
 
 # Create your script here:
 
-def likehashtag(username, password):
+def like_hashtag(username, password, cartella_commenti):
     content = utils.load_content()
     session = InstaPy(username=username,
                       password=password,
@@ -19,7 +19,8 @@ def likehashtag(username, password):
         session.like_by_tags(content["hashtag"], amount=content["amount"])
 
 
-def buongiornissimo(username, password):
+def comment_hashtag(username, password, cartella_commenti):
+    content = utils.load_content()
     session = InstaPy(username=username,
                       password=password,
                       headless_browser=True,
@@ -27,21 +28,8 @@ def buongiornissimo(username, password):
     with smart_run(session):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
         session.set_do_comment(enabled=True, percentage=100)
-        session.set_comments(['Buongiorno! 😊 Bellissima foto e complimenti per la tua galleria, fantastica! 🔝 Ti va \
-        di passare dal mio profilo e seguirmi se ti piacciono i miei lavori? 📸'])
-        session.like_by_tags(["buongiorno"], amount=_get_amount(), media="Photo")
-
-
-def commenthashtag(username, password):
-    session = InstaPy(username=username,
-                      password=password,
-                      headless_browser=True,
-                      disable_image_load=True)
-    with smart_run(session):
-        session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
-        session.set_do_comment(enabled=True, percentage=100)
-        session.set_comments(_get_comments())
-        session.like_by_tags(_get_hashtags(), amount=_get_amount(), media="Photo")
+        session.set_comments(content["comments"][cartella_commenti])
+        session.like_by_tags(content["hashtag"], amount=_get_amount(), media="Photo")
 
 
 def followfollowers(username, password):
@@ -65,34 +53,6 @@ def unfollow(username, password):
 
 
 # !! Not delete the following code.
-
-
-def _get_amount():
-    try:
-        a = open("settings/amount.txt", encoding="utf-8").readlines()
-        return int(a[0])
-    except:
-        print("Unable to read amount!")
-        raise
-
-
-def _get_hashtags():
-    try:
-        a = open("settings/tags.txt", encoding="utf-8").readlines()
-        return a
-    except:
-        print("Unable to read hashtags!")
-        raise
-
-
-def _get_comments():
-    try:
-        a = open("settings/comments.txt", encoding="utf-8").readlines()
-        return a
-    except:
-        print("Unable to read comments!")
-        raise
-
 
 def _get_follow():
     try:

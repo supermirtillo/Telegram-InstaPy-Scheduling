@@ -1,4 +1,4 @@
-hashtag - Impostazioni per glihashtag
+hashtag - Impostazioni per gli hashtag
 comments - Impostazioni per i commenti
 amount - Imposta il numero di foto con cui interagire
 now - Fa partire uno script subito

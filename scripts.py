@@ -29,17 +29,18 @@ def comment_hashtag(username, password, cartella_commenti):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
         session.set_do_comment(enabled=True, percentage=100)
         session.set_comments(content["comments"][cartella_commenti])
-        session.like_by_tags(content["hashtag"], amount=_get_amount(), media="Photo")
+        session.like_by_tags(content["hashtag"], amount=content["amount"], media="Photo")
 
 
 def followfollowers(username, password):
+    content = utils.load_content()
     session = InstaPy(username=username,
                       password=password,
                       headless_browser=True,
                       disable_image_load=True)
     with smart_run(session):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
-        session.follow_user_followers(_get_follow(), amount=_get_amount(), randomize=False)
+        session.follow_user_followers(_get_follow(), amount=content["amount"], randomize=False)
 
 
 def unfollow(username, password):

@@ -36,7 +36,7 @@ class Thread(threading.Thread):
     def run(self):
         start = datetime.datetime.now().replace(microsecond=0)
         self.bot.send_message(self.chat_id,
-                              text="*{}*\nPartito @ {}".format(self.job_name, time.strftime("%X")),
+                              text="*{}*\n\nStart 🕓 {}".format(self.job_name, time.strftime("%X")),
                               parse_mode="Markdown"
                               )
 
@@ -50,7 +50,7 @@ class Thread(threading.Thread):
 
         end = datetime.datetime.now().replace(microsecond=0)
         self.bot.send_message(self.chat_id,
-                              text='*{}*\nFinito @ {}\nTempo di esecuzione: {}'.
+                              text='*{}*\n\nEnd 🕓 {}\nDurata ⌚ {}'.
                               format(self.job_name, time.strftime("%X"), end - start),
                               parse_mode="Markdown"
                               )

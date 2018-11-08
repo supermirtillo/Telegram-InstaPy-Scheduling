@@ -1,10 +1,9 @@
+esegui - Fa partire uno script subito
 hashtag - Impostazioni per gli hashtag
-comments - Impostazioni per i commenti
+commenti - Impostazioni per i commenti
 amount - Imposta il numero di foto con cui interagire
-now - Fa partire uno script subito
 cancel - Annulla il comando
 set_follow - Imposta un utente
-scripts - Mostra gli scripts
 set - Imposta calendario
 unset - Elimina i lavori impostati
 jobs - Mostra i lavori impostati

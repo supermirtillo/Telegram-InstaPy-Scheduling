@@ -8,7 +8,7 @@ from instapy.instapy.util import smart_run
 
 # Create your script here:
 
-def like_hashtag(username, password, cartella_commenti):
+def like_hashtag(username, password, cartella_corrente):
     content = utils.load_content()
     session = InstaPy(username=username,
                       password=password,
@@ -16,10 +16,10 @@ def like_hashtag(username, password, cartella_commenti):
                       disable_image_load=False)
     with smart_run(session):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
-        session.like_by_tags(content["hashtag"], amount=content["amount"])
+        session.like_by_tags(content["hashtag"][cartella_corrente["hashtag"]], amount=content["amount"])
 
 
-def comment_hashtag(username, password, cartella_commenti):
+def comment_hashtag(username, password, cartella_corrente):
     content = utils.load_content()
     session = InstaPy(username=username,
                       password=password,
@@ -28,8 +28,8 @@ def comment_hashtag(username, password, cartella_commenti):
     with smart_run(session):
         session.set_relationship_bounds(enabled=False, delimit_by_numbers=False)
         session.set_do_comment(enabled=True, percentage=100)
-        session.set_comments(content["comments"][cartella_commenti])
-        session.like_by_tags(content["hashtag"], amount=content["amount"], media="Photo")
+        session.set_comments(content["commenti"][cartella_corrente["commenti"]])
+        session.like_by_tags(content["hashtag"][cartella_corrente["hashtag"]], amount=content["amount"], media="Photo")
 
 
 def followfollowers(username, password):

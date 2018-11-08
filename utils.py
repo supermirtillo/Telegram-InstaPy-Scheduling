@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import datetime
-import pickle
+import json
 from thread import Thread
 
-pickle_file = "settings/content.pkl"
+content_file = "settings/content.json"
 
 
 def chatid_is_valid(update, allowed_id, error_message):
@@ -28,21 +28,21 @@ def create_button_layout(lista, col_n):
 
 def load_content():
     try:
-        with open(pickle_file, "rb") as f:
-            content = pickle.load(f)
+        with open(content_file, "r") as f:
+            content = json.load(f)
     except:
-        return {"comments": {}, "hashtag": [], "follow": [], "amount": 0}
+        return {"commenti": {}, "hashtag": {}, "follow": [], "amount": 0}
 
     try:
         content["amount"] = int(content["amount"])
     except:
-        pass
+        content["amount"] = 1
     return content
 
 
 def save_content(content):
-    with open(pickle_file, "wb") as f:
-        pickle.dump(content, f)
+    with open(content_file, "w") as f:
+        json.dump(content, f)
         return True
 
 

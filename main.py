@@ -19,7 +19,7 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageH
 import scripts
 import utils
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Load settings
 with open('settings.json') as f:
@@ -30,7 +30,9 @@ allowed_id = settings['allowed_id']
 user = {'username': settings['insta_user'], 'password': settings['insta_pass'], 'proxy': None}
 content = utils.load_content()
 
-cartella_corrente = None
+# dizionario per salvare il valore corrente della cartella corrente per gli hashtag
+# e per i commenti
+cartella_corrente = {"commenti": None, "hashtag": None}
 
 print(os.getcwd())
 
@@ -40,18 +42,11 @@ threads = {}
 # Messaggio di errore per quando l'utente non è autenticato
 error_message = "This bot no longer works."
 
-# Command status
-reading_hashtags = False
-reading_comments = False
-
 # Lists
 hashtag_list = []
 comments_list = []
 
 jobs_file = "settings/jobs.pkl"
-hashtag_file = "settings/tags.txt"
-amount_file = "settings/amount.txt"
-comments_file = "settings/comments.txt"
 follow_file = "settings/follow.txt"
 
 
@@ -74,32 +69,44 @@ def restricted(func):
 def now_conv(bot, update):
     tastiera = telegram.ReplyKeyboardMarkup(
         utils.create_button_layout(
-            list(content["comments"].keys()),
+            list(content["commenti"].keys()),
             3),
         resize_keyboard=True
     )
-    update.message.reply_text("👉 *Scegli* la cartella dei commenti", parse_mode="Markdown", reply_markup=tastiera)
+    update.message.reply_text("👉 Scegli la cartella dei *commenti*", parse_mode="Markdown", reply_markup=tastiera)
 
-    return CARTELLA_NOW
+    return CARTELLA_COMMENTI_NOW
 
 
 @restricted
-def cartella_now(bot, update):
+def cartella_commenti_now(bot, update):
+    global cartella_corrente
+    text = update.message.text
+    cartella_corrente["commenti"] = text
+
+    # passo alla lista delle cartelle degli hashtag
+    tastiera = telegram.ReplyKeyboardMarkup(utils.create_button_layout(list(content["hashtag"].keys()), 3),
+                                            resize_keyboard=True
+                                            )
+    update.message.reply_text("👉 Scegli la cartella degi *hashtag*", parse_mode="Markdown", reply_markup=tastiera)
+    return CARTELLA_HASHTAG_NOW
+
+
+@restricted
+def cartella_hashtag_now(bot, update):
     global cartella_corrente
 
     text = update.message.text
-    cartella_corrente = text
+    cartella_corrente["hashtag"] = text
 
     scripts_list = list(scripts._get_scripts().keys())
-    tastiera_script = telegram.ReplyKeyboardMarkup(utils.create_button_layout(scripts_list, 2))
+    tastiera_script = telegram.ReplyKeyboardMarkup(utils.create_button_layout(scripts_list, 2), resize_keyboard=True)
 
-    risposta = "*Cartella commenti*:\n  📪 {}\n".format(cartella_corrente)
-    risposta += "\n*Hashtag*:"
-    for tag in content["hashtag"]:
-        risposta += "\n  ▫️ {}".format(tag)
+    risposta = "*Cartella commenti*:\n  📝 {}\n\n".format(cartella_corrente["commenti"])
+    risposta += "*Cartella hashtag*:\n  🏷️ {}\n\n".format(cartella_corrente["hashtag"])
 
-    n_hashtag = len(content["hashtag"])
-    risposta += "\n\n*Interazioni totali*:\n  🤝 {}".format(content["amount"]*n_hashtag)
+    n_hashtag = len(content["hashtag"][cartella_corrente["hashtag"]])
+    risposta += "*Interazioni totali*:\n  🤝 {}".format(content["amount"] * n_hashtag)
     update.message.reply_text(risposta, parse_mode="Markdown")
 
     update.message.reply_text("👉 Scegli uno *script*:", parse_mode="Markdown",
@@ -127,28 +134,6 @@ def script_now(bot, update):
     return ConversationHandler.END
 
 
-@restricted
-def now(bot, update, args):
-    try:
-        if not args[0] in scripts._get_scripts():
-            update.message.reply_text("Lo script <b>{}</b> non esiste!".format(args[0]), parse_mode='HTML')
-            return
-
-        job_name = "{}_temp_{}".format(args[0], time())
-        temp_thread = utils.Thread(
-            job_name,
-            args[0],
-            update.message.chat_id,
-            bot,
-            user['username'],
-            user['password'],
-            user['proxy']
-        )
-        temp_thread.start()
-    except (IndexError, ValueError):
-        update.message.reply_text('Usage: /now <script_name>')
-
-
 def exec_thread(bot, job):
     if threads[job.name].isAlive():
         bot.send_message(threads[job.name].chat_id, text="Sorry <b>{}</b> already executing!".format(job.name),
@@ -171,127 +156,156 @@ def create_thread(bot, context):
 
 
 @restricted
-def set_hashtag(bot, update):
-    """
-    Mostro all'utente la lista degli hashtag salvati e chiedo cosa fare
-    """
-    risposta = "Ecco gli *hashtag* salvati:\n"
-    for tag in content["hashtag"]:
-        risposta += "\n▫️ {}".format(tag)
+def lista_cartelle_hashtag(bot, update):
+    return lista_cartelle_generale(bot, update, "hashtag", CARTELLA_HASHTAG)
 
-    update.message.reply_text(risposta, parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardMarkup(
-        [["🔄 Azzera e riscrivi"], ["✏️ Aggiungi hashtag"], ["✅ Fine"]],
-        resize_keyboard=True
-    ))
 
-    return MODIFICA_HASHTAG
+@restricted
+def leggi_cartella_hashtag(bot, update):
+    return leggi_cartella_generale(bot, update, "hashtag", MODIFICA_HASHTAG)
 
 
 @restricted
 def modifica_hashtag(bot, update):
-    global content
-    text = update.message.text
-    if ("riscrivi" in text.lower()) or ("aggiungi" in text.lower()):
-        update.message.reply_text(
-            "Scrivi gli hashtag uno alla volta. Manda *#* per terminare",
-            parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
-
-        if "riscrivi" in text.lower():
-            # se c'è il riscrivi vuol dire che devo resettare la lista
-            # prima di aggiungere commenti con leggi_commenti
-            content["hashtag"] = []
-
-        return LEGGI_HASHTAG
-    else:
-        return fine_conversazione(bot, update)
+    return modifica_cartella_generale(bot, update, "hashtag", LEGGI_HASHTAG)
 
 
 @restricted
 def leggi_hashtag(bot, update):
-    global content
-    hashtag = update.message.text
-    if hashtag == "#":
-        update.message.reply_text("*Hashtag salvati* 😎", parse_mode="Markdown")
-        return ConversationHandler.END
-
-    content["hashtag"].append(hashtag.lower())
-    utils.save_content(content)
+    return leggi_generale(bot, update, "hashtag")
 
 
 @restricted
-def lista_cartelle(bot, update):
+def lista_cartelle_commenti(bot, update):
+    return lista_cartelle_generale(bot, update, "commenti", CARTELLA_COMMENTI)
+
+
+@restricted
+def leggi_cartella_commenti(bot, update):
+    return leggi_cartella_generale(bot, update, "commenti", MODIFICA_COMMENTI)
+
+
+@restricted
+def modifica_commenti(bot, update):
+    return modifica_cartella_generale(bot, update, "commenti", LEGGI_COMMENTI)
+
+
+@restricted
+def leggi_commenti(bot, update):
+    return leggi_generale(bot, update, "commenti")
+
+
+@restricted
+def lista_cartelle_generale(bot, update, tipo: str, return_value_folder):
     """
     Mostro all'utente la lista delle cartelle salvate
     """
     tastiera = telegram.ReplyKeyboardMarkup(
         utils.create_button_layout(
-            list(content["comments"].keys()),
+            list(content[tipo].keys()),
             3),
         resize_keyboard=True
     )
     risposta = "👉 *Scegli* la cartella\n\n      _oppure_\n\n👉 *Scrivi* il nome di una cartella per crearla"
     update.message.reply_text(risposta, parse_mode="Markdown", reply_markup=tastiera)
 
-    return CARTELLA  # passo allo stato di lettura della cartella
+    return return_value_folder  # passo allo stato di lettura della cartellao
 
 
 @restricted
-def leggi_cartella(bot, update):
+def leggi_cartella_generale(bot, update, tipo: str, return_value_edit):
     """
-    Legge la cartella con il MessageHandler, modifica la variabile globale
-    cartella_corrente e passa allo stato di lettura dei commenti per quella cartella
+    Richiesta all'utente della cartella generale
+    :param tipo: il nome del tipo di cartella "hashtag" oppure "commenti"
+    :param return_value_edit: il valore di ritorno (il nuovo stato della conversazione)
+    :return: lo stato del ritorno definito da return_value
     """
+
     global cartella_corrente
     global content
-    cartella_corrente = update.message.text
-    if cartella_corrente in content["comments"]:
-        risposta = "Cartella *{}*:".format(cartella_corrente)
-        for commento in content["comments"][cartella_corrente]:
-            risposta += "\n\n▪️ {}".format(commento)
+
+    # errore nel passaggio dei parametri, finisco la conversazione
+    if (tipo != "commenti") and (tipo != "hashtag"):
+        return fine_conversazione(bot, update)
+
+    # imposto la cartella corrente come il messaggio che ho appena letto
+    cartella_corrente[tipo] = update.message.text
+
+    # se la cartella esiste (non devo crearla) procedo ad elencare tutti i valori che contiene
+    if cartella_corrente[tipo] in list(content[tipo].keys()):
+        risposta = "*Cartella di {}*:\n  🔥 {}".format(tipo, cartella_corrente[tipo])
+
+        risposta += "\n\n*{} salvati*:".format(tipo.capitalize())
+        for item in content[tipo][cartella_corrente[tipo]]:
+            risposta += "\n▫️ {}".format(item)
+
+        # mando il messaggio e chiedo all'utente che cosa vuole fare di questa cartella
         update.message.reply_text(risposta, parse_mode="Markdown",
                                   reply_markup=telegram.ReplyKeyboardMarkup(
-                                      [["🔄 Azzera e riscrivi"], ["✏️ Aggiungi commento"], ["✅ Fine"]],
+                                      [["🔄  Riscrivi", "✏️ Aggiungi"],
+                                       ["❌  Elimina", "✅ Fine"]],
                                       resize_keyboard=True
                                   ))
-        return MODIFICA_COMMENTI
+        return return_value_edit
 
+    # se la cartella nel messaggio non esiste la creo e poi passo alla return_value
     else:
-        content["comments"][cartella_corrente] = []
-        update.message.reply_text("Nuova cartella *{}*".format(cartella_corrente), parse_mode="Markdown")
-
-    update.message.reply_text("Scrivi i commenti per questa cartella uno alla volta.\nManda *#* per terminare",
-                              parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
-    return LEGGI_COMMENTI
+        content[tipo][cartella_corrente[tipo]] = []
+        utils.save_content(content)
+        update.message.reply_text("Nuova cartella *{}* creata. La troverai in /{}".
+                                  format(cartella_corrente[tipo], tipo),
+                                  parse_mode="Markdown")
+        return fine_conversazione(bot, update)
 
 
 @restricted
-def resetta_o_fine_cartella(bot, update):
+def modifica_cartella_generale(bot, update, tipo: str, return_value_read):
     global content
-    text = update.message.text
-    if ("riscrivi" in text.lower()) or ("aggiungi" in text.lower()):
-        update.message.reply_text(
-            "Scrivi pure i commenti per *{}* uno alla volta. Manda *#* per terminare".format(cartella_corrente),
-            parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+    comando = update.message.text.lower()
 
-        if "riscrivi" in text.lower():
-            # se c'è il riscrivi vuol dire che devo resettare la lista
-            # prima di aggiungere commenti con leggi_commenti
-            content["comments"][cartella_corrente] = []
+    if (tipo != "commenti") and (tipo != "hashtag"):
+        # se ho un errore nel passaggio dei parametri finisco la conversazione
+        return fine_conversazione(bot, update)
 
-        return LEGGI_COMMENTI
+    elif "riscrivi" in comando:
+        update.message.reply_text("🔄  Riscrivi *{}* (cartella di *{}*)\nManda *#* per terminare".
+                                  format(cartella_corrente[tipo], tipo),
+                                  parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+        # resetto il contetnuto della cartella prima di leggere (leggere eseguirà .append())
+        content[tipo][cartella_corrente[tipo]] = []
+        return return_value_read
+
+    elif "aggiungi" in comando:
+        update.message.reply_text("✏️ Aggiungi a *{}* (cartella di *{}*)\nManda *#* per terminare".
+                                  format(cartella_corrente[tipo], tipo),
+                                  parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+        return return_value_read
+
+    elif "elimina" in comando:
+        update.message.reply_text("❌  Cartella di {} *{}* eliminata!".format(tipo, cartella_corrente[tipo]),
+                                  parse_mode="Markdown", reply_markup=telegram.ReplyKeyboardRemove())
+        del content[tipo][cartella_corrente[tipo]]
+        utils.save_content(content)
+        return ConversationHandler.END
     else:
         return fine_conversazione(bot, update)
 
 
 @restricted
-def leggi_commenti(bot, update):
+def leggi_generale(bot, update, tipo: str):
     global content
-    commento = update.message.text
-    if commento == "#":
-        update.message.reply_text("*Commenti salvati* 😎", parse_mode="Markdown")
+
+    text = update.message.text
+
+    # se ho degli hashtag li voglio tutti minuscoli
+    if tipo == "hashtag":
+        text = text.lower()
+
+    if text == "#":
+        update.message.reply_text("*{} salvati* 😎".format(tipo.capitalize()), parse_mode="Markdown")
         return ConversationHandler.END
 
-    content["comments"][cartella_corrente].append(commento)
+    content[tipo][cartella_corrente[tipo]].append(text)
     utils.save_content(content)
 
 
@@ -333,7 +347,7 @@ def follow(bot, update, args):
 @restricted
 def set_amount(bot, update):
     update.message.reply_text("Valore attuale: *{}*".format(content["amount"]), parse_mode="Markdown",
-                              reply_markup=telegram.ReplyKeyboardMarkup([["✏️ Modifica"], ["✅ Fine"]],
+                              reply_markup=telegram.ReplyKeyboardMarkup([["✏️ Modifica", "✅ Fine"]],
                                                                         resize_keyboard=True)
                               )
     return MODIFICA_AMOUNT
@@ -363,32 +377,6 @@ def leggi_amount(bot, update):
 
     update.message.reply_text("*Valore salvato* 👍", parse_mode="Markdown")
     return ConversationHandler.END
-
-
-@restricted
-def show_hashtag(bot, update):
-    update.message.reply_text("*Hashtag salvati*", parse_mode="Markdown")
-    try:
-        lista = open(hashtag_file, "r", encoding="utf-8").readlines()
-        messaggio = ""
-        for line in lista:
-            messaggio += line + "\n"
-        update.message.reply_text(messaggio)
-    except:
-        update.message.reply_text("Nessun hashtag salvato!")
-
-
-@restricted
-def show_comments(bot, update):
-    update.message.reply_text("*Commenti salvati*", parse_mode="Markdown")
-    try:
-        lista = open(comments_file, "r", encoding="utf-8").readlines()
-        messaggio = ""
-        for line in lista:
-            messaggio += line + "\n"
-        update.message.reply_text(messaggio)
-    except:
-        update.message.reply_text("Nessun commento salvato!")
 
 
 @restricted
@@ -635,25 +623,26 @@ if __name__ == '__main__':
     dp.add_handler(CommandHandler("reload_scripts", reload_scripts))
 
     # conversazione per l'aggiunta e la visione dei commenti salvati
-    CARTELLA, LEGGI_COMMENTI, MODIFICA_COMMENTI = range(3)
+    CARTELLA_COMMENTI, LEGGI_COMMENTI, MODIFICA_COMMENTI = range(3)
 
     dp.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("comments", lista_cartelle)],
+        entry_points=[CommandHandler("commenti", lista_cartelle_commenti)],
         states={
-            CARTELLA: [MessageHandler(Filters.text, leggi_cartella)],
-            LEGGI_COMMENTI: [MessageHandler(Filters.text, leggi_commenti)],
-            MODIFICA_COMMENTI: [MessageHandler(Filters.text, resetta_o_fine_cartella)]
+            CARTELLA_COMMENTI: [MessageHandler(Filters.text, leggi_cartella_commenti)],
+            MODIFICA_COMMENTI: [MessageHandler(Filters.text, modifica_commenti)],
+            LEGGI_COMMENTI: [MessageHandler(Filters.text, leggi_commenti)]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         per_user=True
     ))
 
     # conversazione per l'aggiunta e la visualizzazione degli hashtag
-    MODIFICA_HASHTAG, LEGGI_HASHTAG = range(2)
+    CARTELLA_HASHTAG, MODIFICA_HASHTAG, LEGGI_HASHTAG = range(3)
 
     dp.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("hashtag", set_hashtag)],
+        entry_points=[CommandHandler("hashtag", lista_cartelle_hashtag)],
         states={
+            CARTELLA_HASHTAG: [MessageHandler(Filters.text, leggi_cartella_hashtag)],
             MODIFICA_HASHTAG: [MessageHandler(Filters.text, modifica_hashtag)],
             LEGGI_HASHTAG: [MessageHandler(Filters.text, leggi_hashtag)]
         },
@@ -675,12 +664,13 @@ if __name__ == '__main__':
     ))
 
     # conversazione per now
-    CARTELLA_NOW, SCRIPT_NOW = range(2)
+    CARTELLA_COMMENTI_NOW, CARTELLA_HASHTAG_NOW, SCRIPT_NOW = range(3)
 
     dp.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("now", now_conv)],
+        entry_points=[CommandHandler("esegui", now_conv)],
         states={
-            CARTELLA_NOW: [MessageHandler(Filters.text, cartella_now)],
+            CARTELLA_COMMENTI_NOW: [MessageHandler(Filters.text, cartella_commenti_now)],
+            CARTELLA_HASHTAG_NOW: [MessageHandler(Filters.text, cartella_hashtag_now)],
             SCRIPT_NOW: [MessageHandler(Filters.text, script_now)]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
